@@ -34,8 +34,6 @@ using namespace std;
 extern "C" {
 #endif
 
-// --- INSPIRED BY Library/jni/src/jni/com_hw_cookie_ebookreader_engine_adobe_AdobeReader.cpp --------
-
 #define GET_UTF8(jstring, cstring)  \
 	const char *cstring = env->GetStringUTFChars(jstring, NULL);\
     if (cstring == NULL)\
@@ -55,13 +53,17 @@ extern "C" {
 #define RELEASE_UTF8(jstring, cstring)  env->ReleaseStringUTFChars(jstring, cstring);
 
 /*
- * Cached methods and fields IDs. Initialized by the NTX_API_ReaderInitial function.
+ * Cached methods and fields IDs.
  */
 
 static jclass javaObjectsFactoryClass = NULL;
 static jclass javaSpineItemClass = NULL;
 
 static jmethodID createSpineItem_ID;
+static jmethodID createContainer_ID;
+static jmethodID addPackageToContainer_ID;
+static jmethodID createStringList_ID;
+static jmethodID addStringToList_ID;
 
 #define INIT_FACADE_METHOD_ID(mtd_id, mtd_name, mtd_sig) INIT_METHOD_ID(mtd_id, javaObjectsFactoryClass, "com/readium/jni/JavaObjectsFactory", mtd_name, mtd_sig)
 #define INIT_FACADE_STATIC_METHOD_ID(mtd_id, mtd_name, mtd_sig) INIT_STATIC_METHOD_ID(mtd_id, javaObjectsFactoryClass, "com/readium/jni/JavaObjectsFactory", mtd_name, mtd_sig)
@@ -91,6 +93,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 
 	INIT_FACADE_STATIC_METHOD_ID (createSpineItem_ID, "createSpineItem", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/readium/model/epub3/SpineItem;");
 
+	INIT_FACADE_STATIC_METHOD_ID (createContainer_ID, "createContainer", "(ILjava/lang/String;)Lcom/readium/model/epub3/Container;");
+	INIT_FACADE_STATIC_METHOD_ID (addPackageToContainer_ID, "addPackageToContainer", "(Lcom/readium/model/epub3/Container;I)V");
+	INIT_FACADE_STATIC_METHOD_ID (createStringList_ID, "createStringList", "()Ljava/util/List;");
+	INIT_FACADE_STATIC_METHOD_ID (addStringToList_ID, "addStringToList", "(Ljava/util/List;Ljava/lang/String;)V");
+
 	end:
 
 	// Just "for fun", we create a first Java SpineItem object:
@@ -107,28 +114,28 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 
 // JNIEXPORT void JNI_OnUnload(JavaVM* vm, void* reserved);
 
-jstring returnJstring(JNIEnv *env, char* str) {
+jstring returnJstring(JNIEnv *env, char* str, bool freeNative=true) {
 	if (str == NULL) {
 		return NULL;
 	}
 
-	jstring jstr = env->NewStringUTF(str);
-	free(str);
+    jstring jstr = env->NewStringUTF(str);
+    if (freeNative) {
+    	free(str);
+    }
 
 	return jstr;
 }
 //--------------------
 
-shared_ptr<ePub3::Container> _container;
-
-void readPackages()
+void readPackages(shared_ptr<ePub3::Container> container)
 {
-    auto packages = _container->Packages();
+    auto packages = container->Packages();
 
     for (auto package = packages.begin(); package != packages.end(); ++package) {
 
         // [_packages addObject:[[[LOXPackage alloc] initWithSdkPackage:*package] autorelease]];
-        PRINT("_container.Version: %p\n", _container->Version().c_str());
+        PRINT("_container.Version: %p\n", container->Version().c_str());
         PRINT("package type: %p\n", package);
 
         // Just to show an example, we create the list of Spine Items:
@@ -149,8 +156,8 @@ void initializeEpub3SdkApi()
 
 
 
-JNIEXPORT jint JNICALL
-Java_com_readium_EPubJNI_openBook(JNIEnv* env, jobject thiz, jstring jPath)
+JNIEXPORT jobject JNICALL
+Java_com_readium_EPubAPI_openBook(JNIEnv* env, jobject thiz, jstring jPath)
 {
 	initializeEpub3SdkApi();
 
@@ -158,32 +165,175 @@ Java_com_readium_EPubJNI_openBook(JNIEnv* env, jobject thiz, jstring jPath)
 	const char *nativePath = env->GetStringUTFChars(jPath, NULL);
 	if (nativePath == NULL) {
 		PRINT("GetStringUTFChars returned null. Could not allocate memory to hold the UTF-8 string\n");
-		return -1;
+		return NULL;
 	}
 	PRINT("GetStringUTFChars returned %s\n", nativePath);
 
 	std::string path = std::string(nativePath);
-	_container = ePub3::Container::OpenContainer(path);
+	shared_ptr<ePub3::Container> _container = ePub3::Container::OpenContainer(path);
 	PRINT("_container OK\n");
+//	PRINT("_container.Version: %p\n", _container->Version().c_str());
 
-	readPackages();
+	jobject jContainer = env->CallStaticObjectMethod(javaObjectsFactoryClass,
+			createContainer_ID, (jint) _container.get(), jPath);
 
-	PRINT("_container OK\n");
-	PRINT("_container.Version: %p\n", _container->Version().c_str());
+    auto packages = _container->Packages();
+
+    for (auto package = packages.begin(); package != packages.end(); ++package) {
+
+        // [_packages addObject:[[[LOXPackage alloc] initWithSdkPackage:*package] autorelease]];
+        PRINT("_container.Version: %p\n", _container->Version().c_str());
+        PRINT("package type: %p\n", package);
+        env->CallStaticVoidMethod(javaObjectsFactoryClass, addPackageToContainer_ID,
+        		jContainer, package);
+
+    }
 
 	env->ReleaseStringUTFChars(jPath, nativePath);
 
-	return 0;
+	return jContainer;
 }
 
-/*
- * Class:     org_readium_sdk_android_EPub3
- * Method:    closeBook
- * Signature: (I)V
- */
-JNIEXPORT void JNICALL
-Java_com_readium_EPubJNI_closeBook(JNIEnv* env, jobject thiz, int handle){
 
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->Title().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetSubtitle(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->Subtitle().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetShortTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->ShortTitle().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetCollectionTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->CollectionTitle().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetEditionTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->EditionTitle().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetExpandedTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->ExpandedTitle().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetFullTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->FullTitle().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetUniqueID(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->UniqueID().c_str();
+	return returnJstring(env, data, false);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetURLSafeUniqueID(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->URLSafeUniqueID().c_str();
+	return returnJstring(env, data, false);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetPackageID(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->PackageID().c_str();
+	return returnJstring(env, data, false);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetType(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->Type().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetVersion(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->Version().c_str();
+	return returnJstring(env, data, false);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetISBN(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->ISBN().c_str();
+	return returnJstring(env, data, false);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetLanguage(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->Language().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetCopyrightOwner(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->CopyrightOwner().c_str();
+	return returnJstring(env, data, false);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetSource(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->Source().c_str();
+	return returnJstring(env, data);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetAuthors(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->Authors().c_str();
+	return returnJstring(env, data, false);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetModificationDate(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	char *data = (*pckg)->ModificationDate().c_str();
+	return returnJstring(env, data, false);
+}
+JNIEXPORT jobject JNICALL
+Java_com_readium_model_epub3_Package_nativeGetSubjects(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	jobject stringList = env->CallStaticObjectMethod(javaObjectsFactoryClass,
+			createStringList_ID);
+	auto subjects = (*pckg)->Subjects();
+    for (auto subject = subjects.begin(); subject != subjects.end(); ++subject) {
+		char *data = subject->c_str();
+		env->CallStaticVoidMethod(javaObjectsFactoryClass, addPackageToContainer_ID,
+				stringList, returnJstring(env, data));
+    }
+	return stringList;
 }
 
 #ifdef __cplusplus
