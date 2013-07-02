@@ -53,7 +53,7 @@ public:
     const NavigationList&   Children()                  const   { return _children; }
     
     void                    AppendChild(shared_ptr<NavigationElement> e)   { _children.push_back(e); }
-    
+
 protected:
     NavigationList          _children;
 };

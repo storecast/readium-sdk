@@ -29,21 +29,155 @@ extern "C" {
 #endif
 
 /*
- * Class:     org_readium_sdk_android_EPub3
- * Method:    openBook
+ * Class:     com_readium_EPubAPI
+ * Method:    nativeOpenBook
  * Signature: (Ljava/lang/String;)I
  */
 JNIEXPORT jint JNICALL
-Java_com_readium_EPubJNI_nativeOpenBook(JNIEnv* env, jobject thiz, jstring jPath);
+Java_com_readium_EPubAPI_nativeOpenBook(JNIEnv* env, jobject thiz, jstring jPath);
 
 
 /*
- * Class:     org_readium_sdk_android_EPub3
+ * Class:     com_readium_EPubAPI
  * Method:    closeBook
  * Signature: (I)V
  */
-JNIEXPORT void JNICALL
-Java_com_readium_EPubJNI_closeBook(JNIEnv* env, jobject thiz, int handle);
+//JNIEXPORT void JNICALL
+//Java_com_readium_EPubJNI_closeBook(JNIEnv* env, jobject thiz, int handle);
+
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetTitle
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetTitle(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetSubtitle
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetSubtitle(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetShortTitle
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetShortTitle(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetCollectionTitle
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetCollectionTitle(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetEditionTitle
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetEditionTitle(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetExpandedTitle
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetExpandedTitle(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetFullTitle
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetFullTitle(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetUniqueID
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetUniqueID(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetURLSafeUniqueID
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetURLSafeUniqueID(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetPackageID
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetPackageID(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetType
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetType(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetVersion
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetVersion(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetISBN
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetISBN(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetLanguage
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetLanguage(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetCopyrightOwner
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetCopyrightOwner(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetSource
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetSource(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetAuthors
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetAuthors(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetModificationDate
+ * Signature: (I)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetModificationDate(JNIEnv* env, jobject thiz, jint pckgPtr);
+/*
+ * Class:     com_readium_model_epub3_Package
+ * Method:    nativeGetSubjects
+ * Signature: (I)Ljava/util/List;
+ */
+JNIEXPORT jobject JNICALL
+Java_com_readium_model_epub3_Package_nativeGetSubjects(JNIEnv* env, jobject thiz, jint pckgPtr);
 
 #ifdef __cplusplus
 }
