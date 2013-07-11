@@ -304,7 +304,7 @@ Java_com_readium_model_epub3_Package_nativeGetFullTitle(JNIEnv* env, jobject thi
 {
 	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
 	char *data = (*pckg)->FullTitle().c_str();
-	return returnJstring(env, data);
+	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetUniqueID(JNIEnv* env, jobject thiz, jint pckgPtr)
@@ -389,6 +389,25 @@ Java_com_readium_model_epub3_Package_nativeGetModificationDate(JNIEnv* env, jobj
 	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
 	char *data = (*pckg)->ModificationDate().c_str();
 	return returnJstring(env, data, false);
+}
+JNIEXPORT jstring JNICALL
+Java_com_readium_model_epub3_Package_nativeGetPageProgressionDirection(JNIEnv* env, jobject thiz, jint pckgPtr)
+{
+	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
+	ePub3::PageProgression pageProgressionDirection = (*pckg)->PageProgressionDirection();
+	char *direction;
+	switch (pageProgressionDirection) {
+	case ePub3::PageProgression::LeftToRight:
+		direction = "ltr";
+		break;
+	case ePub3::PageProgression::RightToLeft:
+		direction = "rtl";
+		break;
+	case ePub3::PageProgression::Default:
+	default:
+		direction = "";
+	}
+	return returnJstring(env, direction);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetAuthorList(JNIEnv* env, jobject thiz, jint pckgPtr)
