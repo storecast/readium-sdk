@@ -78,11 +78,11 @@ static jmethodID addElementToParent_ID;
 static jmethodID createBuffer_ID;
 static jmethodID appendBytesToBuffer_ID;
 
-//HACK attempts to keep package ref still available during long period
-static vector<shared_ptr<ePub3::Package>> pckgs;
-static ePub3::Package* currentPckg;
-static shared_ptr<ePub3::Package>* currentPckgPtr;
+static shared_ptr<ePub3::Package> currentPckgPtr;
+static shared_ptr<ePub3::Container> currentContainer;
 
+#define pckg    (*((shared_ptr<ePub3::Package>*)pckgPtr))
+#define contnr    (*((shared_ptr<ePub3::Container>*)contnrPtr))
 
 #define INIT_FACADE_METHOD_ID(mtd_id, mtd_name, mtd_sig) INIT_METHOD_ID(mtd_id, javaObjectsFactoryClass, "com/readium/jni/JavaObjectsFactory", mtd_name, mtd_sig)
 #define INIT_FACADE_STATIC_METHOD_ID(mtd_id, mtd_name, mtd_sig) INIT_STATIC_METHOD_ID(mtd_id, javaObjectsFactoryClass, "com/readium/jni/JavaObjectsFactory", mtd_name, mtd_sig)
@@ -135,7 +135,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 
 // JNIEXPORT void JNI_OnUnload(JavaVM* vm, void* reserved);
 
-jstring returnJstring(JNIEnv *env, char* str, bool freeNative=true) {
+jstring returnJstring(JNIEnv *env, char* str, bool freeNative=false) {
 	if (str == NULL) {
 		return NULL;
 	}
@@ -151,7 +151,7 @@ jstring returnJstring(JNIEnv *env, char* str, bool freeNative=true) {
 
 char* getProperty(ePub3::Package* package, char* name, char* pref, ePub3::PropertyHolder* forObject)
 {
-
+	PRINT("getProperty(%s:%s)", name, pref);
     auto propertyName = ePub3::string(name);
     auto prefix = ePub3::string(pref);
     auto iri = package->MakePropertyIRI(propertyName, prefix);
@@ -177,8 +177,8 @@ void initializeEpub3SdkApi()
 void loadChildren(JNIEnv* env, jobject jparent, shared_ptr<ePub3::NavigationElement> parent)
 {
 	auto children = parent->Children();
-	for (auto child = children.begin(); child != children.end(); ++child) {
-		auto instance = &*child;
+	for (auto childIt = children.begin(); childIt != children.end(); ++childIt) {
+		auto instance = &*childIt;
 		auto navigationElement = instance->get();
 		if (ePub3::NavigationPoint *navigationPoint = dynamic_cast<ePub3::NavigationPoint*>(navigationElement)) {
 			jstring title = returnJstring(env, navigationPoint->Title().c_str(), false);
@@ -217,7 +217,6 @@ jobject loadNavigationTable(JNIEnv* env, shared_ptr<class ePub3::NavigationTable
 }
 
 
-
 JNIEXPORT jobject JNICALL
 Java_com_readium_EPubAPI_openBook(JNIEnv* env, jobject thiz, jstring jPath)
 {
@@ -234,21 +233,22 @@ Java_com_readium_EPubAPI_openBook(JNIEnv* env, jobject thiz, jstring jPath)
 	std::string path = std::string(nativePath);
 	shared_ptr<ePub3::Container> _container = ePub3::Container::OpenContainer(path);
 	PRINT("_container OK\n");
+	currentContainer = _container;
 
 	jobject jContainer = env->CallStaticObjectMethod(javaObjectsFactoryClass,
-			createContainer_ID, (jint) _container.get(), jPath);
+			createContainer_ID, (jint) &_container, jPath);
 
     auto packages = _container->Packages();
 
-    for (auto package = packages.begin(); package != packages.end(); ++package) {
-    	auto pckg = &*(&*package);
+    for (auto packageIt = packages.begin(); packageIt != packages.end(); ++packageIt) {
+    	auto package = &*(&*packageIt);
         PRINT("_container.Version: %s\n", _container->Version().c_str());
-        PRINT("package type: %p %s\n", pckg, typeid(pckg).name());
-        pckgs.push_back (*pckg);
-        currentPckg = pckg->get();
-        currentPckgPtr = pckg;
+        PRINT("package type: %p %s\n", package, typeid(package).name());
+        currentPckgPtr = *package;
+        PRINT("currentPckgPtr\n");
         env->CallStaticVoidMethod(javaObjectsFactoryClass, addPackageToContainer_ID,
-        		jContainer, (jint) pckg);
+        		jContainer, (jint) &currentPckgPtr);
+        PRINT("addPackageToContainer_ID\n");
 
     }
 
@@ -260,141 +260,121 @@ Java_com_readium_EPubAPI_openBook(JNIEnv* env, jobject thiz, jstring jPath)
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->Title().c_str();
-	return returnJstring(env, data);
+	char *data = pckg->Title().c_str();
+	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetSubtitle(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->Subtitle().c_str();
+	char *data = pckg->Subtitle().c_str();
 	return returnJstring(env, data);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetShortTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->ShortTitle().c_str();
+	char *data = pckg->ShortTitle().c_str();
 	return returnJstring(env, data);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetCollectionTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->CollectionTitle().c_str();
+	char *data = pckg->CollectionTitle().c_str();
 	return returnJstring(env, data);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetEditionTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->EditionTitle().c_str();
+	char *data = pckg->EditionTitle().c_str();
 	return returnJstring(env, data);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetExpandedTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->ExpandedTitle().c_str();
+	char *data = pckg->ExpandedTitle().c_str();
 	return returnJstring(env, data);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetFullTitle(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->FullTitle().c_str();
+	char *data = pckg->FullTitle().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetUniqueID(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->UniqueID().c_str();
+	char *data = pckg->UniqueID().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetURLSafeUniqueID(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->URLSafeUniqueID().c_str();
+	char *data = pckg->URLSafeUniqueID().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetPackageID(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->PackageID().c_str();
+	char *data = pckg->PackageID().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetBasePath(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->BasePath().c_str();
+	char *data = pckg->BasePath().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetType(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->Type().c_str();
+	char *data = pckg->Type().c_str();
 	return returnJstring(env, data);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetVersion(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->Version().c_str();
+	char *data = pckg->Version().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetISBN(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->ISBN().c_str();
+	char *data = pckg->ISBN().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetLanguage(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->Language().c_str();
+	char *data = pckg->Language().c_str();
 	return returnJstring(env, data);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetCopyrightOwner(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->CopyrightOwner().c_str();
+	char *data = pckg->CopyrightOwner().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetSource(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->Source().c_str();
+	char *data = pckg->Source().c_str();
 	return returnJstring(env, data);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetAuthors(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->Authors().c_str();
+	char *data = pckg->Authors().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetModificationDate(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	char *data = (*pckg)->ModificationDate().c_str();
+	char *data = pckg->ModificationDate().c_str();
 	return returnJstring(env, data, false);
 }
 JNIEXPORT jstring JNICALL
 Java_com_readium_model_epub3_Package_nativeGetPageProgressionDirection(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-	ePub3::PageProgression pageProgressionDirection = (*pckg)->PageProgressionDirection();
+	ePub3::PageProgression pageProgressionDirection = pckg->PageProgressionDirection();
 	char *direction;
 	switch (pageProgressionDirection) {
 	case ePub3::PageProgression::LeftToRight:
@@ -412,10 +392,9 @@ Java_com_readium_model_epub3_Package_nativeGetPageProgressionDirection(JNIEnv* e
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetAuthorList(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
 	jobject stringList = env->CallStaticObjectMethod(javaObjectsFactoryClass,
 			createStringList_ID);
-	auto authorNames = (*pckg)->AuthorNames();
+	auto authorNames = pckg->AuthorNames();
     for (auto author = authorNames.begin(); author != authorNames.end(); ++author) {
 		char *data = author->c_str();
 		jstring jauthor = returnJstring(env, data, false);
@@ -428,10 +407,9 @@ Java_com_readium_model_epub3_Package_nativeGetAuthorList(JNIEnv* env, jobject th
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetSubjects(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
 	jobject stringList = env->CallStaticObjectMethod(javaObjectsFactoryClass,
 			createStringList_ID);
-	auto subjects = (*pckg)->Subjects();
+	auto subjects = pckg->Subjects();
     for (auto subject = subjects.begin(); subject != subjects.end(); ++subject) {
 		char *data = subject->c_str();
 		jstring jsubject = returnJstring(env, data, false);
@@ -444,11 +422,10 @@ Java_com_readium_model_epub3_Package_nativeGetSubjects(JNIEnv* env, jobject thiz
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetSpineItems(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
 	jobject spineItemList = env->CallStaticObjectMethod(javaObjectsFactoryClass,
 			createSpineItemList_ID);
 
-    auto spine = (*pckg)->FirstSpineItem();
+    auto spine = pckg->FirstSpineItem();
     do {
     	jstring idRef = returnJstring(env, spine->Idref().c_str());
         auto manifestItem = spine->ManifestItem();
@@ -469,7 +446,7 @@ Java_com_readium_model_epub3_Package_nativeGetSpineItems(JNIEnv* env, jobject th
     		_page_spread = "";
     	}
     	jstring pageSpread = returnJstring(env, _page_spread);
-    	const char *_renditionLayout = getProperty(pckg->get(), "layout", "rendition", (&*spine));
+    	const char *_renditionLayout = getProperty((&*pckg), "layout", "rendition", (&*spine));
     	jstring renditionLayout = env->NewStringUTF(_renditionLayout);
 
     	jobject spineItem = env->CallStaticObjectMethod(javaObjectsFactoryClass, createSpineItem_ID,
@@ -490,55 +467,44 @@ Java_com_readium_model_epub3_Package_nativeGetSpineItems(JNIEnv* env, jobject th
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetTableOfContents(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-
-    auto navigationTable = (*pckg)->TableOfContents();
+    auto navigationTable = pckg->TableOfContents();
 
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetListOfFigures(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-
-    auto navigationTable = (*pckg)->ListOfFigures();
+    auto navigationTable = pckg->ListOfFigures();
 
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetListOfIllustrations(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-
-    auto navigationTable = (*pckg)->ListOfIllustrations();
+    auto navigationTable = pckg->ListOfIllustrations();
 
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetListOfTables(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-
-    auto navigationTable = (*pckg)->ListOfTables();
+    auto navigationTable = pckg->ListOfTables();
 
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetPageList(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
-
-    auto navigationTable = (*pckg)->PageList();
+    auto navigationTable = pckg->PageList();
 
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeReadStreamForRelativePath(JNIEnv* env, jobject thiz, jint pckgPtr, jstring jrelativePath)
 {
-	auto pckg = ((shared_ptr<ePub3::Package>*)pckgPtr);
 	char *relativePath = env->GetStringUTFChars(jrelativePath, NULL);
-    auto path = ePub3::string(currentPckg->BasePath()).append(relativePath);
-    auto reader = currentPckg->ReaderForRelativePath( ePub3::string(relativePath));
+    auto path = ePub3::string(pckg->BasePath()).append(relativePath);
+    auto reader = pckg->ReaderForRelativePath( ePub3::string(relativePath));
 
 	env->ReleaseStringUTFChars(jrelativePath, relativePath);
 
@@ -584,7 +550,7 @@ Java_com_readium_model_epub3_Package_nativeGetProperty(JNIEnv* env, jobject thiz
     char* propertyName = env->GetStringUTFChars(jpropertyName, NULL);
     char* prefix = env->GetStringUTFChars(jprefix, NULL);
 
-    return returnJstring(env, getProperty(currentPckg, propertyName, prefix, currentPckg));
+    return returnJstring(env, getProperty((&*pckg), propertyName, prefix, (&*pckg)));
 }
 
 
