@@ -28,6 +28,7 @@
 #include <ePub3/nav_point.h>
 #include <ePub3/nav_table.h>
 #include <ePub3/property.h>
+#include <ePub3/zip_archive.h>
 #include <string>
 #include <vector>
 #include <typeinfo>
@@ -125,8 +126,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 	INIT_FACADE_STATIC_METHOD_ID (createNavigationPoint_ID, "createNavigationPoint", "(Ljava/lang/String;Ljava/lang/String;)Lcom/readium/model/epub3/components/navigation/NavigationPoint;");
 	INIT_FACADE_STATIC_METHOD_ID (addElementToParent_ID, "addElementToParent", "(Lcom/readium/model/epub3/components/navigation/NavigationElement;Lcom/readium/model/epub3/components/navigation/NavigationElement;)V");
 
-	INIT_FACADE_STATIC_METHOD_ID (createBuffer_ID, "createBuffer", "()Ljava/nio/ByteBuffer;");
-	INIT_FACADE_STATIC_METHOD_ID (appendBytesToBuffer_ID, "appendBytesToBuffer", "(Ljava/nio/ByteBuffer;[B)Ljava/nio/ByteBuffer;");
+	INIT_FACADE_STATIC_METHOD_ID (createBuffer_ID, "createBuffer", "(I)Ljava/nio/ByteBuffer;");
+	INIT_FACADE_STATIC_METHOD_ID (appendBytesToBuffer_ID, "appendBytesToBuffer", "(Ljava/nio/ByteBuffer;[B)V");
 
 	end:
 
@@ -222,7 +223,6 @@ Java_com_readium_EPubAPI_openBook(JNIEnv* env, jobject thiz, jstring jPath)
 {
 	initializeEpub3SdkApi();
 
-	PRINT("**** Calling GetStringUTFChars...\n");
 	const char *nativePath = env->GetStringUTFChars(jPath, NULL);
 	if (nativePath == NULL) {
 		PRINT("GetStringUTFChars returned null. Could not allocate memory to hold the UTF-8 string\n");
@@ -232,11 +232,11 @@ Java_com_readium_EPubAPI_openBook(JNIEnv* env, jobject thiz, jstring jPath)
 
 	std::string path = std::string(nativePath);
 	shared_ptr<ePub3::Container> _container = ePub3::Container::OpenContainer(path);
-	PRINT("_container OK\n");
+	PRINT("_container OK, version: %s\n", _container->Version().c_str());
 	currentContainer = _container;
 
 	jobject jContainer = env->CallStaticObjectMethod(javaObjectsFactoryClass,
-			createContainer_ID, (jint) &_container, jPath);
+			createContainer_ID, (jint) &currentContainer, jPath);
 
     auto packages = _container->Packages();
 
@@ -245,11 +245,9 @@ Java_com_readium_EPubAPI_openBook(JNIEnv* env, jobject thiz, jstring jPath)
         PRINT("_container.Version: %s\n", _container->Version().c_str());
         PRINT("package type: %p %s\n", package, typeid(package).name());
         currentPckgPtr = *package;
-        PRINT("currentPckgPtr\n");
         env->CallStaticVoidMethod(javaObjectsFactoryClass, addPackageToContainer_ID,
         		jContainer, (jint) &currentPckgPtr);
         PRINT("addPackageToContainer_ID\n");
-
     }
 
 	env->ReleaseStringUTFChars(jPath, nativePath);
@@ -468,58 +466,62 @@ JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetTableOfContents(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
     auto navigationTable = pckg->TableOfContents();
-
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetListOfFigures(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
     auto navigationTable = pckg->ListOfFigures();
-
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetListOfIllustrations(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
     auto navigationTable = pckg->ListOfIllustrations();
-
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetListOfTables(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
     auto navigationTable = pckg->ListOfTables();
-
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
 Java_com_readium_model_epub3_Package_nativeGetPageList(JNIEnv* env, jobject thiz, jint pckgPtr)
 {
     auto navigationTable = pckg->PageList();
-
 	return loadNavigationTable(env, navigationTable);
 }
 JNIEXPORT jobject JNICALL
-Java_com_readium_model_epub3_Package_nativeReadStreamForRelativePath(JNIEnv* env, jobject thiz, jint pckgPtr, jstring jrelativePath)
+Java_com_readium_model_epub3_Package_nativeReadStreamForRelativePath(JNIEnv* env, jobject thiz,
+		jint pckgPtr, jint contnrPtr, jstring jrelativePath)
 {
 	char *relativePath = env->GetStringUTFChars(jrelativePath, NULL);
     auto path = ePub3::string(pckg->BasePath()).append(relativePath);
+    auto archive = contnr->GetArchive();
+    bool containsPath = archive->ContainsItem(path);
+    if (!containsPath) {
+        PRINT("No archive found for path %s", path.c_str());
+        return NULL;
+    }
+    auto archiveInfo = archive->InfoAtPath(path);
     auto reader = pckg->ReaderForRelativePath( ePub3::string(relativePath));
 
 	env->ReleaseStringUTFChars(jrelativePath, relativePath);
 
     if (reader == NULL) {
-        PRINT("No archive found for path %s", path.c_str());
+        PRINT("No reader found for path %s\n", path.c_str());
         return NULL;
     } else {
-    	PRINT("Archive found for path %s", path.c_str());
+    	PRINT("Archive found for path %s\n", path.c_str());
     }
 
 	int BUFFER_SIZE = 8192;
     char tmpBuffer[BUFFER_SIZE];
 
     //TODO start check for memory leak
-    jobject jbuffer = env->CallStaticObjectMethod(javaObjectsFactoryClass, createBuffer_ID);
+    jobject jbuffer = env->CallStaticObjectMethod(javaObjectsFactoryClass, createBuffer_ID,
+    		(jint) archiveInfo.UncompressedSize());
 
     ssize_t readBytes = reader->read(tmpBuffer, BUFFER_SIZE);
     while (readBytes > 0) {
@@ -531,7 +533,7 @@ Java_com_readium_model_epub3_Package_nativeReadStreamForRelativePath(JNIEnv* env
         	jbyteBuffer[i] = (jbyte)tmpBuffer[i];
         }
     	env->SetByteArrayRegion(jtmpBuffer, 0, length, jbyteBuffer);
-    	jbuffer = env->CallStaticObjectMethod(javaObjectsFactoryClass, appendBytesToBuffer_ID,
+    	env->CallStaticObjectMethod(javaObjectsFactoryClass, appendBytesToBuffer_ID,
         		jbuffer, jtmpBuffer);
 
 		env->DeleteLocalRef(jtmpBuffer);
