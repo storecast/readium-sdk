@@ -37,4 +37,21 @@ LABEL(C_FN_NAME(epub_sys_cache_flush))
     swi #0x80
     bx  lr
 
+#elif defined(__arm64__)
+
+    .text
+    .align 2
+
+/* void epub_sys_cache_invalidate(void* start, size_t len) */
+    .globl  C_FN_NAME(epub_sys_cache_invalidate)
+C_FN_NAME(epub_sys_cache_invalidate):
+    // NOP
+    ret
+
+/* void epub_sys_cache_flush(void* start, size_t len) */
+    .globl  C_FN_NAME(epub_sys_cache_flush)
+C_FN_NAME(epub_sys_cache_flush):
+    // NOP
+    ret
+
 #endif
