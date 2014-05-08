@@ -252,6 +252,8 @@ int _zip_filerange_crc(FILE *, off_t, off_t, uLong *, struct zip_error *);
 struct zip_source *_zip_source_file_or_p(struct zip *, const char *, FILE *,
 					 off_t, off_t);
 
+struct zip *_zip_open(const char *, FILE *, unsigned int, int *);
+
 void _zip_free(struct zip *);
 const char *_zip_get_name(struct zip *, int, int, struct zip_error *);
 int _zip_local_header_read(struct zip *, int);

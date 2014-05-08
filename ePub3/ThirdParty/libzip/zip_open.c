@@ -68,10 +68,6 @@ ZIP_EXTERN struct zip *
 zip_open(const char *fn, int flags, int *zep)
 {
     FILE *fp;
-    struct zip *za;
-    struct zip_cdir *cdir;
-    int i;
-    off_t len;
     
     switch (_zip_file_exists(fn, flags, zep)) {
     case -1:
@@ -86,6 +82,17 @@ zip_open(const char *fn, int flags, int *zep)
 	set_error(zep, NULL, ZIP_ER_OPEN);
 	return NULL;
     }
+
+    return _zip_open(fn, fp, flags, zep);
+}
+
+struct zip *
+_zip_open(const char *fn, FILE *fp, unsigned int flags, int *zep)
+{
+    struct zip *za;
+    struct zip_cdir *cdir;
+    int i;
+    off_t len;
 
     fseeko(fp, 0, SEEK_END);
     len = ftello(fp);
