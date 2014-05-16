@@ -3,21 +3,20 @@
 //  ePub3
 //
 //  Created by Jim Dovey on 2013-05-03.
-//  Copyright (c) 2012-2013 The Readium Foundation and contributors.
+//  Copyright (c) 2014 Readium Foundation and/or its licensees. All rights reserved.
 //  
-//  The Readium SDK is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU General Public License as published by
-//  the Free Software Foundation, either version 3 of the License, or
-//  (at your option) any later version.
+//  This program is distributed in the hope that it will be useful, but WITHOUT ANY 
+//  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
 //  
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU General Public License for more details.
+//  Licensed under Gnu Affero General Public License Version 3 (provided, notwithstanding this notice, 
+//  Readium Foundation reserves the right to license this material under a different separate license, 
+//  and if you have done so, the terms of that separate license control and the following references 
+//  to GPL do not apply).
 //  
-//  You should have received a copy of the GNU General Public License
-//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-//
+//  This program is free software: you can redistribute it and/or modify it under the terms of the GNU 
+//  Affero General Public License as published by the Free Software Foundation, either version 3 of 
+//  the License, or (at your option) any later version. You should have received a copy of the GNU 
+//  Affero General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <ePub3/property.h>
 #include <ePub3/utilities/iri.h>
@@ -105,7 +104,12 @@ static const std::map<string, RenditionPropertyBits> RenditionSplitPropertyLooku
     {"http://www.idpf.org/vocab/rendition/#spread-landscape", {"spread", "landscape"}},
     {"http://www.idpf.org/vocab/rendition/#spread-portrait", {"spread", "portrait"}},
     {"http://www.idpf.org/vocab/rendition/#spread-both", {"spread", "both"}},
-    {"http://www.idpf.org/vocab/rendition/#spread-auto", {"spread", "auto"}}
+    {"http://www.idpf.org/vocab/rendition/#spread-auto", {"spread", "auto"}},
+    {"http://www.idpf.org/vocab/rendition/#flow-auto", {"flow", "auto"}},
+    {"http://www.idpf.org/vocab/rendition/#flow-paginated", {"flow", "paginated"}},
+    {"http://www.idpf.org/vocab/rendition/#flow-scrolled-doc", {"flow", "scrolled-doc"}},
+    {"http://www.idpf.org/vocab/rendition/#flow-scrolled-continuous", {"flow", "scrolled-continuous"}}
+
 };
 #else
 typedef std::pair<string, DCType> __to_code_pair;
@@ -161,7 +165,11 @@ static __to_rendition_pair __to_rendition_pairs[10] = {
     __to_rendition_pair("http://www.idpf.org/vocab/rendition/#spread-landscape", RenditionPropertyBits("spread", "landscape")),
     __to_rendition_pair("http://www.idpf.org/vocab/rendition/#spread-portrait", RenditionPropertyBits("spread", "portrait")),
     __to_rendition_pair("http://www.idpf.org/vocab/rendition/#spread-both", RenditionPropertyBits("spread", "both")),
-    __to_rendition_pair("http://www.idpf.org/vocab/rendition/#spread-auto", RenditionPropertyBits("spread", "auto"))
+    __to_rendition_pair("http://www.idpf.org/vocab/rendition/#spread-auto", RenditionPropertyBits("spread", "auto")),
+    __to_rendition_pair("http://www.idpf.org/vocab/rendition/#flow-auto", RenditionPropertyBits("flow", "auto")),
+    __to_rendition_pair("http://www.idpf.org/vocab/rendition/#flow-paginated", RenditionPropertyBits("flow", "paginated")),
+    __to_rendition_pair("http://www.idpf.org/vocab/rendition/#flow-scrolled-doc", RenditionPropertyBits("flow", "scrolled-doc")),
+    __to_rendition_pair("http://www.idpf.org/vocab/rendition/#flow-scrolled-continuous", RenditionPropertyBits("flow", "scrolled-continuous"))
 };
 static std::map<string, RenditionPropertyBits> RenditionSplitPropertyLookup(&__to_rendition_pairs[0], &__to_rendition_pairs[9]);
 #endif
