@@ -70,7 +70,7 @@ bool Container::Open(const string& path)
 		throw std::invalid_argument(_Str("Path does not point to a recognised archive file: '", path, "'"));
 	}
 #if EPUB_USE(LIBXML2)
-	_ocf = reader.xmlReadDocument(gContainerFilePath, nullptr, XML_PARSE_RECOVER|XML_PARSE_NOENT|XML_PARSE_DTDATTR);
+	_ocf = reader.xmlReadDocument(gContainerFilePath, nullptr, XML_PARSE_RECOVER|XML_PARSE_NOENT|XML_PARSE_DTDATTR|XML_PARSE_NONET);
 #else
 	decltype(_ocf) __tmp(reader.ReadDocument(gContainerFilePath, nullptr, /*RESOLVE_EXTERNALS*/ 1));
 	_ocf = __tmp;
@@ -228,7 +228,7 @@ void Container::LoadEncryption()
     
     ArchiveXmlReader reader(std::move(pZipReader));
 #if EPUB_USE(LIBXML2)
-    shared_ptr<xml::Document> enc = reader.xmlReadDocument(gEncryptionFilePath, nullptr, XML_PARSE_RECOVER|XML_PARSE_NOENT|XML_PARSE_DTDATTR);
+    shared_ptr<xml::Document> enc = reader.xmlReadDocument(gEncryptionFilePath, nullptr, XML_PARSE_RECOVER|XML_PARSE_NOENT|XML_PARSE_DTDATTR|XML_PARSE_NONET);
 #elif EPUB_USE(WIN_XML)
 	auto enc = reader.ReadDocument(gEncryptionFilePath, nullptr, 0);
 #endif
@@ -292,7 +292,7 @@ void Container::AmendDisplayOptions()
     
     ArchiveXmlReader reader(std::move(pZipReader));
 #if EPUB_USE(LIBXML2)
-    shared_ptr<xml::Document> opt = reader.xmlReadDocument(gDisplayOptionsFilePath, nullptr, XML_PARSE_RECOVER|XML_PARSE_NOENT|XML_PARSE_DTDATTR);
+    shared_ptr<xml::Document> opt = reader.xmlReadDocument(gDisplayOptionsFilePath, nullptr, XML_PARSE_RECOVER|XML_PARSE_NOENT|XML_PARSE_DTDATTR|XML_PARSE_NONET);
 #elif EPUB_USE(WIN_XML)
 	auto opt = reader.ReadDocument(gDisplayOptionsFilePath, nullptr, 0);
 #endif
