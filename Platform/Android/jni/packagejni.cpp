@@ -42,6 +42,7 @@
 #include "helpers.h"
 #include "package.h"
 #include "resource_stream.h"
+#include "ePub3/filter_chain_byte_stream_range.h"
 
 
 using namespace std;
@@ -116,23 +117,34 @@ jobject javaPackage_createPackage(JNIEnv *env, jlong nativePtr) {
  * Internal functions
  **************************************************/
 
-static ePub3::string getProperty(ePub3::Package* package, char* name, char* pref, ePub3::PropertyHolder* forObject)
+static ePub3::string getProperty(ePub3::Package* package, char* name, char* pref, ePub3::PropertyHolder* forObject, bool lookupParents)
 {
-	LOGD("getProperty(): called for name='%s' pref='%s'", name, pref);
+    LOGD("getProperty(): called for name='%s' pref='%s'", name, pref);
     auto propertyName = ePub3::string(name);
     auto prefix = ePub3::string(pref);
     auto iri = package->MakePropertyIRI(propertyName, prefix);
 
-    auto propertyList = forObject->PropertiesMatching(iri);
+    auto prop = forObject->PropertyMatching(iri, lookupParents);
 
-    if (propertyList.size() > 0) {
-        auto prop = propertyList[0];
+    if (prop != nullptr) {
         ePub3::string value(prop->Value());
-    	LOGD("getProperty(): returning '%s'", value.c_str());
+        LOGD("getProperty(): returning '%s'", value.c_str());
         return value;
     }
-	LOGD("getProperty(): returning EMPTY");
+    LOGD("getProperty(): returning EMPTY");
     return "";
+}
+
+static ePub3::string getPropertyWithOptionalPrefix(ePub3::Package *package, char *name, char *pref, ePub3::PropertyHolder *forObject, bool lookupParents) {
+    LOGD("getPropertyWithOptionalPrefix(): called for name='%s' pref='%s'", name, pref);
+    auto value = getProperty(package, name, pref, forObject, lookupParents);
+
+    if (value.length() == 0) {
+        LOGD("getPropertyWithOptionalPrefix(): did not find with prefix, attempting with no prefix (name='%s' pref='%s')", name, pref);
+        return getProperty(package, name, (char *) "", forObject, lookupParents);
+    }
+
+    return value;
 }
 
 static void loadChildren(JNIEnv* env, jobject jparent, shared_ptr<ePub3::NavigationElement> parent)
@@ -603,31 +615,26 @@ JNIEXPORT jobject JNICALL Java_org_readium_sdk_android_Package_nativeGetSpineIte
     	jstring href = (jstring) hr;
     	jni::StringUTF mt(env, (std::string&) manifestItem->MediaType().stl_str());
     	jstring mediaType = (jstring) mt;
-    	const char* _page_spread;
-    	ePub3::PageSpread spread = spine->Spread();
-    	switch (spread) {
-    	case ePub3::PageSpread::Left:
-    		_page_spread = "page-spread-left";
-    		break;
-    	case ePub3::PageSpread::Right:
-    		_page_spread = "page-spread-right";
-    		break;
-    	case ePub3::PageSpread::Center:
-    		_page_spread = "page-spread-center";
-    		break;
-    	default:
-    		_page_spread = "";
-    		break;
-    	}
-    	jstring pageSpread = toJstring(env, _page_spread);
-    	ePub3::string _renditionLayout = getProperty((&*PCKG(pckgPtr)), (char *) "layout", (char *) "rendition", (&*spine));
-    	jstring renditionLayout = env->NewStringUTF(_renditionLayout.c_str());
 
-    	ePub3::string _media_overlay_id = manifestItem->MediaOverlayID();
-    	jstring media_overlay_id = env->NewStringUTF(_media_overlay_id.c_str());
+        ePub3::string _pageSpread = getPropertyWithOptionalPrefix((&*PCKG(pckgPtr)), (char *) "page-spread", (char *) "rendition", (&*spine), false);
+    	ePub3::string _renditionLayout = getProperty((&*PCKG(pckgPtr)), (char *) "layout", (char *) "rendition", (&*spine), false);
+    	ePub3::string _renditionFlow = getProperty((&*PCKG(pckgPtr)), (char *) "flow", (char *) "rendition", (&*spine), false);
+    	ePub3::string _renditionOrientation = getProperty((&*PCKG(pckgPtr)), (char *) "orientation", (char *) "rendition", (&*spine), false);
+    	ePub3::string _renditionSpread = getProperty((&*PCKG(pckgPtr)), (char *) "spread", (char *) "rendition", (&*spine), false);
+        jstring pageSpread = env->NewStringUTF(_pageSpread.c_str());
+    	jstring renditionLayout = env->NewStringUTF(_renditionLayout.c_str());
+    	jstring renditionFlow = env->NewStringUTF(_renditionFlow.c_str());
+    	jstring renditionOrientation = env->NewStringUTF(_renditionOrientation.c_str());
+    	jstring renditionSpread = env->NewStringUTF(_renditionSpread.c_str());
+
+        bool lnr = spine->Linear();
+        jboolean linear = (jboolean) lnr;
+
+    	ePub3::string _mediaOverlayId = manifestItem->MediaOverlayID();
+    	jstring mediaOverlayId = env->NewStringUTF(_mediaOverlayId.c_str());
 
     	jobject spineItem = env->CallStaticObjectMethod(javaJavaObjectsFactoryClass, createSpineItem_ID,
-    			idRef, title, href, mediaType, pageSpread, renditionLayout, media_overlay_id);
+    			idRef, title, href, mediaType, pageSpread, renditionLayout, renditionFlow, renditionOrientation, renditionSpread, linear, mediaOverlayId);
 
 		env->CallStaticVoidMethod(javaJavaObjectsFactoryClass, addSpineItemToList_ID,
 				spineItemList, spineItem);
@@ -637,7 +644,10 @@ JNIEXPORT jobject JNICALL Java_org_readium_sdk_android_Package_nativeGetSpineIte
 		env->DeleteLocalRef(mediaType);
 		env->DeleteLocalRef(pageSpread);
 		env->DeleteLocalRef(renditionLayout);
-		env->DeleteLocalRef(media_overlay_id);
+		env->DeleteLocalRef(renditionFlow);
+		env->DeleteLocalRef(renditionOrientation);
+		env->DeleteLocalRef(renditionSpread);
+		env->DeleteLocalRef(mediaOverlayId);
 		env->DeleteLocalRef(spineItem);
 
     } while ((spine = spine->Next()) != nullptr);
@@ -720,14 +730,41 @@ JNIEXPORT jint JNICALL Java_org_readium_sdk_android_Package_nativeGetArchiveInfo
 
     return (jint) archiveInfo.UncompressedSize();
 }
+
+JNIEXPORT jobject JNICALL Java_org_readium_sdk_android_Package_nativeRawInputStreamForRelativePath
+		(JNIEnv* env, jobject thiz, jlong pckgPtr, jlong contnrPtr, jstring jrelativePath, jint bufferSize)
+{
+	char *relativePath = (char *) env->GetStringUTFChars(jrelativePath, NULL);
+	LOGI("Package.nativeRawInputStreamForRelativePath(): received relative path '%s'", relativePath);
+	auto basePath = ePub3::string(PCKG(pckgPtr)->BasePath());
+	LOGI("Package.nativeRawInputStreamForRelativePath(): package base path '%s'", basePath.c_str());
+	auto path = basePath.append(relativePath);
+	LOGI("Package.nativeRawInputStreamForRelativePath(): final path '%s'", path.c_str());
+	auto archive = contnr->GetArchive();
+	bool containsPath = archive->ContainsItem(path);
+	if (!containsPath) {
+		LOGE("Package.nativeRawInputStreamForRelativePath(): no archive found for path '%s'", path.c_str());
+		return NULL;
+	}
+
+	unique_ptr<ePub3::ByteStream> byteStream = PCKG(pckgPtr)->ReadStreamForItemAtPath(path);
+
+	env->ReleaseStringUTFChars(jrelativePath, relativePath);
+
+	ResourceStream *stream = new ResourceStream(byteStream, bufferSize);
+	jobject inputStream = javaResourceInputStream_createResourceInputStream(env, (long) stream);
+
+	return inputStream;
+}
+
 JNIEXPORT jobject JNICALL Java_org_readium_sdk_android_Package_nativeInputStreamForRelativePath
-		(JNIEnv* env, jobject thiz, jlong pckgPtr, jlong contnrPtr, jstring jrelativePath) {
+		(JNIEnv* env, jobject thiz, jlong pckgPtr, jlong contnrPtr, jstring jrelativePath, jint bufferSize, jboolean isRange)
+{
 	char *relativePath = (char *) env->GetStringUTFChars(jrelativePath, NULL);
 	LOGI("Package.nativeInputStreamForRelativePath(): received relative path '%s'", relativePath);
 	auto basePath = ePub3::string(PCKG(pckgPtr)->BasePath());
 	LOGI("Package.nativeInputStreamForRelativePath(): package base path '%s'", basePath.c_str());
     auto path = basePath.append(relativePath);
-	env->ReleaseStringUTFChars(jrelativePath, relativePath);
 	LOGI("Package.nativeInputStreamForRelativePath(): final path '%s'", path.c_str());
     auto archive = contnr->GetArchive();
     bool containsPath = archive->ContainsItem(path);
@@ -735,11 +772,29 @@ JNIEXPORT jobject JNICALL Java_org_readium_sdk_android_Package_nativeInputStream
         LOGE("Package.nativeInputStreamForRelativePath(): no archive found for path '%s'", path.c_str());
         return NULL;
     }
-    auto archiveInfo = archive->InfoAtPath(path);
-    auto byteStream = PCKG(pckgPtr)->ReadStreamForItemAtPath(path);
-    ResourceStream *stream = new ResourceStream(byteStream);
 
-    jobject inputStream = javaResourceInputStream_createResourceInputStream(env, stream, (int) archiveInfo.UncompressedSize());
+    unique_ptr<ePub3::ByteStream> byteStream;
+
+	ePub3::ConstManifestItemPtr manifestItem = PCKG(pckgPtr)->ManifestItemAtRelativePath(ePub3::string(relativePath));
+	if (manifestItem != nullptr) {
+		auto rawInputbyteStream = PCKG(pckgPtr)->ReadStreamForItemAtPath(path);
+		ePub3::ManifestItemPtr m = std::const_pointer_cast<ePub3::ManifestItem>(manifestItem);
+		if (isRange == JNI_TRUE) {
+			byteStream = PCKG(pckgPtr)->GetFilterChainByteStreamRange(m, dynamic_cast<ePub3::SeekableByteStream *>(rawInputbyteStream.release()));
+		} else {
+			byteStream = PCKG(pckgPtr)->GetFilterChainByteStream(m, dynamic_cast<ePub3::SeekableByteStream *>(rawInputbyteStream.release()));
+		}
+	} else {
+		// In the rare case that the manifest item could not be resolved from the path,
+		// fallback to a non-filtered byte stream read.
+		byteStream = PCKG(pckgPtr)->ReadStreamForItemAtPath(path);
+		LOGI("Package.nativeInputStreamForRelativePath(): manifest item not found for relative path '%s'", relativePath);
+	}
+
+	env->ReleaseStringUTFChars(jrelativePath, relativePath);
+
+    ResourceStream *stream = new ResourceStream(byteStream, bufferSize);
+    jobject inputStream = javaResourceInputStream_createResourceInputStream(env, (long) stream);
 
 	return inputStream;
 }
@@ -750,7 +805,7 @@ JNIEXPORT jobject JNICALL Java_org_readium_sdk_android_Package_nativeGetProperty
     char* propertyName = (char *) env->GetStringUTFChars(jpropertyName, NULL);
     char* prefix = (char *) env->GetStringUTFChars(jprefix, NULL);
 
-    ePub3::string property = getProperty((&*PCKG(pckgPtr)), propertyName, prefix, (&*PCKG(pckgPtr)));
+    ePub3::string property = getProperty((&*PCKG(pckgPtr)), propertyName, prefix, (&*PCKG(pckgPtr)), true);
     jstring jprop = toJstring(env, property.c_str());
 
     RELEASE_UTF8(jpropertyName, propertyName);

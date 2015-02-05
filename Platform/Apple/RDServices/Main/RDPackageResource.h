@@ -32,36 +32,23 @@
 @class RDPackage;
 @class RDPackageResource;
 
-@protocol RDPackageResourceDelegate
-
-- (void)rdpackageResourceWillDeallocate:(RDPackageResource *)packageResource;
-
-@end
-
-@interface RDPackageResource : NSObject {
-	@private UInt8 m_buffer[4096];
-	@private NSData *m_data;
-	@private __weak id <RDPackageResourceDelegate> m_delegate;
-	@private RDPackage *m_package;
-	@private NSString *m_relativePath;
-}
+@interface RDPackageResource : NSObject
 
 @property (nonatomic, readonly) void *byteStream;
 @property (nonatomic, readonly) NSUInteger contentLength;
-@property (nonatomic, readonly) NSData *data;
+@property (nonatomic, readonly) NSUInteger contentLengthCheck;
 @property (nonatomic, copy) NSString *mimeType;
 @property (nonatomic, readonly) RDPackage *package;
 
 // The relative path associated with this resource.
 @property (nonatomic, readonly) NSString *relativePath;
 
-- (id)
-	initWithDelegate:(id <RDPackageResourceDelegate>)delegate
-	byteStream:(void *)byteStream
+- (instancetype)
+	initWithByteStream:(void *)byteStream
 	package:(RDPackage *)package
 	relativePath:(NSString *)relativePath;
 
-- (NSData *)readDataOfLength:(NSUInteger)length;
-- (void)setOffset:(UInt64)offset;
+- (NSData *)readDataFull;
+- (NSData *)readDataOfLength:(NSUInteger)length offset:(UInt64)offset isRangeRequest:(BOOL)isRangeRequest;
 
 @end

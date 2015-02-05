@@ -29,17 +29,22 @@
 
 #import <Foundation/Foundation.h>
 
+@class RDContainer;
+
+@protocol RDContainerDelegate <NSObject>
+
+- (BOOL)container:(RDContainer *)container handleSdkError:(NSString *)message isSevereEpubError:(BOOL)isSevereEpubError;
+
+@end
+
 @class RDPackage;
 
-@interface RDContainer : NSObject {
-	@private NSMutableArray *m_packages;
-	@private NSString *m_path;
-}
+@interface RDContainer : NSObject
 
 @property (nonatomic, readonly) RDPackage *firstPackage;
 @property (nonatomic, readonly) NSArray *packages;
 @property (nonatomic, readonly) NSString *path;
 
-- (id)initWithPath:(NSString *)path;
+- (instancetype)initWithDelegate:(id <RDContainerDelegate>)delegate path:(NSString *)path;
 
 @end

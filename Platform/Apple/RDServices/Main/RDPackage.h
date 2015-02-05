@@ -29,22 +29,11 @@
 
 #import <Foundation/Foundation.h>
 
-@class RDContainer;
 @class RDMediaOverlaysSmilModel;
 @class RDNavigationElement;
 @class RDPackageResource;
 
-@interface RDPackage : NSObject {
-	@private RDMediaOverlaysSmilModel *m_mediaOverlaysSmilModel;
-	@private RDNavigationElement *m_navElemListOfFigures;
-	@private RDNavigationElement *m_navElemListOfIllustrations;
-	@private RDNavigationElement *m_navElemListOfTables;
-	@private RDNavigationElement *m_navElemPageList;
-	@private RDNavigationElement *m_navElemTableOfContents;
-	@private NSString *m_packageUUID;
-	@private NSMutableArray *m_spineItems;
-	@private NSMutableArray *m_subjects;
-}
+@interface RDPackage : NSObject
 
 @property (nonatomic, readonly) NSString *authors;
 @property (nonatomic, readonly) NSString *basePath;
@@ -75,9 +64,16 @@
 @property (nonatomic, readonly) RDNavigationElement *tableOfContents;
 @property (nonatomic, readonly) NSString *title;
 
-- (id)initWithPackage:(void *)package;
+- (instancetype)initWithPackage:(void *)package;
 
 // Returns the resource at the given relative path or nil if it doesn't exist.
 - (RDPackageResource *)resourceAtRelativePath:(NSString *)relativePath;
+
+// Gets the current Byte Stream and returns the proper Byte Stream for the case.
+// There can be three possible byte streams:
+// - A simple ZipFileByteStream when no ContentFilter objects apply for this resource.
+// - A FilterChainByteStreamRange when a Byte Range request has been made, and only one ContentFilter object applies.
+// - A FilterChainByteStream when it is not a Byte Range request or more than one ContentFilter applies.
+- (void *)getProperByteStream:(NSString *)relativePath currentByteStream:(void *)currentByteStream isRangeRequest:(BOOL)isRangeRequest;
 
 @end

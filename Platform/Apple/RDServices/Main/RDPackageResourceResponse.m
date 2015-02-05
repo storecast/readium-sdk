@@ -32,6 +32,16 @@
 #import "RDPackageResourceServer.h"
 
 
+@interface RDPackageResourceResponse () {
+	@private UInt64 m_offset;
+	@private UInt64 m_offsetInitial;
+	@private  BOOL m_isRangeRequest;
+	@private RDPackageResource *m_resource;
+}
+
+@end
+
+
 @implementation RDPackageResourceResponse
 
 
@@ -41,8 +51,17 @@
 
 
 - (NSDictionary *)httpHeaders {
-	NSString *contentType = self->m_resource.mimeType;
+	if(m_resource.relativePath) {
+		NSString* ext = [[m_resource.relativePath pathExtension] lowercaseString];
+		if([ext isEqualToString:@"xhtml"] || [ext isEqualToString:@"html"]) {
+			return [NSDictionary dictionaryWithObject:@"application/xhtml+xml" forKey:@"Content-Type"]; // FORCE
+		}
+		else if([ext isEqualToString:@"xml"]) {
+			return [NSDictionary dictionaryWithObject:@"application/xml" forKey:@"Content-Type"]; // FORCE
+		}
+	}
 
+	NSString *contentType = self->m_resource.mimeType;
 	if (contentType) {
 		return @{@"Content-Type": contentType};
 	}
@@ -52,13 +71,14 @@
 }
 
 
-- (id)initWithResource:(RDPackageResource *)resource {
+- (instancetype)initWithResource:(RDPackageResource *)resource {
 	if (resource == nil) {
 		return nil;
 	}
 
 	if (self = [super init]) {
 		m_resource = resource;
+		m_isRangeRequest = NO;
 	}
 
 	return self;
@@ -66,7 +86,10 @@
 
 
 - (BOOL)isDone {
-	return m_offset == m_resource.contentLength;
+	bool isDone = !m_isRangeRequest
+		? (m_offset >= m_resource.contentLength)
+		: (m_offset >= (m_offsetInitial + m_resource.contentLengthCheck));
+	return isDone;
 }
 
 
@@ -74,16 +97,30 @@
 	return m_offset;
 }
 
+//- (BOOL)isChunked
+//{
+//    return YES; // we do not know the content length in advance
+//}
 
 - (NSData *)readDataOfLength:(NSUInteger)length {
 	NSData *data = nil;
-
+	
 	@synchronized ([RDPackageResourceServer resourceLock]) {
-		data = [m_resource readDataOfLength:length];
+		data = [m_resource readDataOfLength:length offset:m_offset isRangeRequest:m_isRangeRequest];
 	}
-
+	
 	if (data != nil) {
 		m_offset += data.length;
+	}
+
+	if (data == nil || data.length == 0)
+	{
+		printf("readDataOfLength NO DATA  %s (%d)\n", [m_resource.relativePath UTF8String], length);
+	}
+
+	if (data == nil)
+	{
+		data = [NSData data];
 	}
 
 	return data;
@@ -92,10 +129,8 @@
 
 - (void)setOffset:(UInt64)offset {
 	m_offset = offset;
-
-	@synchronized ([RDPackageResourceServer resourceLock]) {
-		[m_resource setOffset:offset];
-	}
+	m_offsetInitial = offset;
+	m_isRangeRequest = YES;
 }
 
 
